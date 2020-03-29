@@ -103,25 +103,26 @@ auto main() -> int
 	h("const int NOUT = ", num_nodes.back(), ";");
 	
 	h("");
-	h("float sigmoid(float x)");
+	h("double sigmoid(double x)");
 	h("{");
-		h("return 1.f/(1.f + std::exp(x));");
+		h("return 1./(1. + std::exp(-x));");
 	h("}");
 	
-	h("float dsigmoid(float x)");
+	
+	h("double dsigmoid(double x)");
 	h("{");
-		h("float z = 1.f + std::exp(-x);");
-		h("return 1.f/(z*z);");
+		h("double z = sigmoid(x);");
+		h("return z*(1.0-z);");
 	h("}");
 	
 	h("");
-	h("void init_params(float* params)");
+	h("void init_params(double* params)");
 	
 	h("{");
 	
-	h("std::srand(std::time(nullptr));");
-	h("for(int i=0; i<", nnodes*3, "; ++i) {");
-		h("params[i] = 2.f*((float)std::rand()/(float)RAND_MAX)-1.f;");
+	h("std::srand((unsigned)std::time(nullptr));");
+	h("for(int i=0; i<NPARAMS; ++i) {");
+		h("params[i] = 2.*((double)std::rand()/(double)RAND_MAX)-1.;");
 	h("}");
 	
 	h("}");
@@ -129,17 +130,17 @@ auto main() -> int
 	
 	h("");
 	{
-	h("void forward(const float* params, const float* in, float* out)");
+	h("void forward(const double* params, const double* in, double* out)");
 	
 	h("{");
 	
-	h("static float y[", max_node, "];");
+	h("static double y[", nnodes, "];");
 	
 	int node_index = 0;
 	int param_index = 0;
 	for(size_t i=1; i<num_nodes.size(); ++i) {
-		std::string in = std::string("y[") + std::to_string(node_index);
-		std::string out = std::string("y[") + std::to_string(node_index + num_nodes[i]);
+		std::string in = std::string("y[") + std::to_string(node_index - num_nodes[i-1]);
+		std::string out = std::string("y[") + std::to_string(node_index);
 		
 		if(i == 1) {
 			in = "in[0";
@@ -162,6 +163,7 @@ auto main() -> int
 		h("}");
 		
 		param_index += (num_nodes[i-1]+1)*num_nodes[i];
+		node_index += num_nodes[i];
 		
 	}
 	
@@ -171,12 +173,12 @@ auto main() -> int
 	}
 	h("");
 	{
-	h("float backward(const float* params, float* dparams, const float* in, const float* exp)");
+	h("double backward(const double* params, double* dparams, const double* in, const double* exp)");
 	
 	h("{");
 	
-	h("static float o[", nnodes, "];");
-	h("static float y[", nnodes+num_nodes[0], "];");
+	h("static double o[", nnodes, "];");
+	h("static double y[", nnodes+num_nodes[0], "];");
 	
 	int node_index = 0;
 	int param_index = 0;
@@ -198,30 +200,30 @@ auto main() -> int
 		h("}");
 		
 		
+		param_index += (num_nodes[i-1]+1)*num_nodes[i];
 		node_index += num_nodes[i];
-		param_index += num_nodes[i]*num_nodes[i-1];
 		
 	}
 	
 	int back_index = 0;
 	int rnode_index = nnodes - num_nodes.back();
 	int rparam_index = nparams - num_nodes.back() * (num_nodes[num_nodes.size()-2]+1);
-	h("static float back[", nnodes, "];");
+	h("static double back[", nnodes, "];");
 	h("");
-	h("float loss = 0.f;");
+	h("double loss = 0.;");
 	h("for(int i=0; i<", num_nodes.back(), ";++i) {");
-		h("back[", rnode_index, "+i] = out[i] - exp[i];");
-		h("loss += 0.5f*back[", rnode_index, "+i]*back[", rnode_index, "+i];");
+		h("back[", rnode_index, "+i] = y[", rnode_index + num_nodes[0], "+i]- exp[i];");
+		h("loss += 0.5*back[", rnode_index, "+i]*back[", rnode_index, "+i];");
 	h("}");
 	h("");
 	
 	h("// layer ", num_nodes.size()-1);
 	h("for(int i=0; i<", num_nodes.back(), "; ++i) {");
-		h("back[", rnode_index, "+i] *= dsigmoid(o[", rnode_index, "]);");
+		h("back[", rnode_index, "+i] *= dsigmoid(o[", rnode_index, "+i]);");
 		int prev_num_nodes = num_nodes[num_nodes.size()-2];
 		h("dparams[", rparam_index, "+i*", (prev_num_nodes+1), "+0] += back[", rnode_index, "+i];");
 		h("for(int j=0; j<", prev_num_nodes, "; ++j) {");
-			h("dparams[", rparam_index, "+i*", (prev_num_nodes+1), "+j+1] += back[", rnode_index, "+i]*y[", rnode_index, "+j];");
+			h("dparams[", rparam_index, "+i*", (prev_num_nodes+1), "+j+1] += back[", rnode_index, "+i]*y[", rnode_index+num_nodes[0]-prev_num_nodes, "+j];");
 		h("}");
 	h("}");
 	
@@ -233,14 +235,14 @@ auto main() -> int
 		
 		h("// layer ", i);
 		h("for(int i=0; i<", num_nodes[i], "; ++i) {");
-			h("back[", rnode_index, "+i] = 0.f;");
+			h("back[", rnode_index, "+i] = 0.;");
 			h("for(int j=0; j<", num_nodes[i+1], "; ++j) {");
 				h("back[", rnode_index, "+i] += back[", rnode_index+num_nodes[i], "+j]*params[", rparam_index_prev, "+j*", (num_nodes[i]+1), "+i+1];");
 			h("}");
 			h("back[", rnode_index, "+i] *= dsigmoid(o[", rnode_index, "+i]);");
 			h("dparams[", rparam_index, "+i*", (num_nodes[i-1]+1), "+0] += back[", rnode_index, "+i];");
-			h("for(int j=0; j<", prev_num_nodes, "; ++j) {");
-				h("dparams[", rparam_index, "+i*", (num_nodes[i-1]+1), "+j+1] += back[", rnode_index, "+i]*y[", rnode_index, "+j];");
+			h("for(int j=0; j<", num_nodes[i-1], "; ++j) {");
+				h("dparams[", rparam_index, "+i*", (num_nodes[i-1]+1), "+j+1] += back[", rnode_index, "+i]*y[", rnode_index+num_nodes[0]-num_nodes[i-1], "+j];");
 			h("}");
 		h("}");
 		
@@ -255,14 +257,17 @@ auto main() -> int
 	}
 	h("");
 	{
-	h("void train(const float* in, const float* out, int size, float* params, int nepochs, int batchsize, float alpha)");
+	h("void train(const double* in, const double* out, int size, double* params, int nepochs, int batchsize, double alpha)");
 	
 	h("{");
 	
 	h("int* indices = (int*)malloc(size*sizeof(int));");
-	h("std::srand(std::time(nullptr));");
+	h("std::srand((unsigned)std::time(nullptr));");
+	h("for(int i=0; i<size; ++i) {");
+		h("indices[i] = i;");
+	h("}");
 	
-	h("float* gradient = (float*)malloc(NPARAMS*sizeof(float))");
+	h("double* gradient = (double*)malloc(NPARAMS*sizeof(double));");
 	
 	h("for(int i=0; i<nepochs; ++i) {");
 		h("for(int i=0; i<size; ++i) {");
@@ -276,20 +281,20 @@ auto main() -> int
 			h("indices[b] = tmp;");
 		h("}");
 		
-		h("float loss = 0.f");
+		h("double loss = 0.;");
 		
 		h("for(int j=0; j<size; j += batchsize) {");
-			h("for(int k=0; i<NPARAMS; ++k) {");
-				h("gradient[i] = 0.f;");
+			h("for(int k=0; k<NPARAMS; ++k) {");
+				h("gradient[k] = 0.;");
 			h("}");
 			
 			h("int last = j+batchsize > size ? size : j+batchsize;");
 			h("for(int k=j; k<last; ++k) {");
-				h("loss += backward(params, gradient, in[indices[k]], out[indices[k]]);");
+				h("loss += backward(params, gradient, &in[indices[k]*", num_nodes[0], "], &out[indices[k]*", num_nodes.back(),"]);");
 			h("}");
 			
 			h("for(int k=0; k<NPARAMS; ++k) {");
-				h("params[k] -= alpha * gradient[i] / (float)batchsize");
+				h("params[k] -= alpha * gradient[k] / (double)batchsize;");
 			h("}");
 		h("}");
 		
