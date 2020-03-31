@@ -24,13 +24,13 @@ auto main() -> int
 	init_params(params.data());
 	
 	
-	std::vector<double> gradient(13, 0.);
+	std::vector<double> gradient(NPARAMS, 0.);
 	backward(params.data(), gradient.data(), &in_data[2], &out_data[1]);
 	
-	std::vector<double> approx_gradient(13, 0.);
+	std::vector<double> approx_gradient(NPARAMS, 0.);
 	double epsilon = 1e-7;
 	double diff = 0.0;
-	for(int i=0; i<13; ++i) {
+	for(int i=0; i<NPARAMS; ++i) {
 		double end;
 		std::vector<double> end_params(params);
 		end_params[i] += epsilon;
@@ -51,7 +51,7 @@ auto main() -> int
 	
 	std::cout << "diff : " << std::sqrt(diff) << std::endl;
 	
-	train(in_data.data(), out_data.data(), 4, params.data(), 1000000, 4, 0.10);
+	train(in_data.data(), out_data.data(), 4, params.data(), 1000000, 4, 0.01);
 	
 	double result;
 	forward(params.data(), &in_data[0], &result);

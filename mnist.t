@@ -10,6 +10,7 @@ auto main() -> int
 	@train_model
 	@load_test_data
 	@test_model
+
 	system("PAUSE");
 	return 0;
 }
@@ -38,7 +39,7 @@ std::vector<double> params(NPARAMS);
 init_params(params.data());
 
 @train_model+=
-train(in_data.data(), out_data.data(), out_data.size()/10, params.data(), 5, 10, 3.f);
+train(in_data.data(), out_data.data(), out_data.size()/10, params.data(), 5, 10, 3.0);
 
 @load_test_data+=
 std::string test_images_path, test_labels_path;

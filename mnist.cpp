@@ -35,7 +35,7 @@ auto main() -> int
 	std::vector<double> params(NPARAMS);
 	init_params(params.data());
 	
-	train(in_data.data(), out_data.data(), out_data.size()/10, params.data(), 5, 10, 3.f);
+	train(in_data.data(), out_data.data(), out_data.size()/10, params.data(), 5, 10, 3.0);
 	
 	std::string test_images_path, test_labels_path;
 	std::cout << "test images: ";
@@ -57,6 +57,7 @@ auto main() -> int
 	}
 	
 	std::cout << "Success : " << (double)num_good*100.0/(double)(test_out_data.size()/10) << "%" << std::endl;
+
 	system("PAUSE");
 	return 0;
 }

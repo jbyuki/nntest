@@ -1,8 +1,9 @@
 #include <cmath>
 #include <ctime>
 #include <cstdlib>
+#include <mkl.h>
 
-const int NPARAMS = 13;
+const int NPARAMS = 17;
 const int NIN = 2;
 const int NOUT = 1;
 
@@ -10,6 +11,7 @@ double sigmoid(double x)
 {
         return 1./(1. + std::exp(-x));
 }
+
 double dsigmoid(double x)
 {
         double z = sigmoid(x);
@@ -26,80 +28,63 @@ void init_params(double* params)
 
 void forward(const double* params, const double* in, double* out)
 {
-        static double y[4];
+        static double y[5];
 
         // layer 0 -> 1
-        for(int i=0; i<3;++i) {
-                y[0+i] = params[0+3*i];
-                for(int j=0; j<2;++j) {
-                        y[0+i] += params[0+3*i+j+1]*in[0+j];
-                }
+        cblas_dgemv(CblasRowMajor, CblasNoTrans,4, 2, 1.0, &params[0],2, &in[0], 1, 0.0, &y[0], 1);
+        cblas_daxpy(4, 1.0, &params[8], 1, &y[0], 1);
+        for(int i=0; i<4;++i) {
                 y[0+i] = sigmoid(y[0+i]);
         }
 
         // layer 1 -> 2
+        cblas_dgemv(CblasRowMajor, CblasNoTrans,1, 4, 1.0, &params[12],4, &y[0], 1, 0.0, &out[0], 1);
+        cblas_daxpy(1, 1.0, &params[16], 1, &out[0], 1);
         for(int i=0; i<1;++i) {
-                out[0+i] = params[9+4*i];
-                for(int j=0; j<3;++j) {
-                        out[0+i] += params[9+4*i+j+1]*y[0+j];
-                }
                 out[0+i] = sigmoid(out[0+i]);
         }
 }
 
 double backward(const double* params, double* dparams, const double* in, const double* exp)
 {
-        static double o[4];
-        static double y[6];
-        for(int i=0; i<2; ++i) {
-                y[i] = in[i];
-        }
+        static double o[5];
+        static double y[5];
 
         // layer 0 -> 1
-        for(int i=0; i<3;++i) {
-                o[0+i] = params[0+i*3];
-                for(int j=0; j<2; ++j) {
-                        o[0+i] += params[0+i*3+j+1] * y[0+j];
-                }
-                y[2+i] = sigmoid(o[0+i]);
+        cblas_dgemv(CblasRowMajor, CblasNoTrans,4, 2, 1.0, &params[0],2, &in[0], 1, 0.0, &o[0], 1);
+        cblas_daxpy(4, 1.0, &params[8], 1, &o[0], 1);
+        for(int i=0; i<4;++i) {
+                y[0+i] = sigmoid(o[0+i]);
         }
 
         // layer 1 -> 2
+        cblas_dgemv(CblasRowMajor, CblasNoTrans,1, 4, 1.0, &params[12],4, &y[0], 1, 0.0, &o[4], 1);
+        cblas_daxpy(1, 1.0, &params[16], 1, &o[4], 1);
         for(int i=0; i<1;++i) {
-                o[3+i] = params[9+i*4];
-                for(int j=0; j<3; ++j) {
-                        o[3+i] += params[9+i*4+j+1] * y[2+j];
-                }
-                y[5+i] = sigmoid(o[3+i]);
+                y[4+i] = sigmoid(o[4+i]);
         }
-        static double back[4];
+        static double back[5];
 
         double loss = 0.;
         for(int i=0; i<1;++i) {
-                back[3+i] = y[5+i]- exp[i];
-                loss += 0.5*back[3+i]*back[3+i];
+                back[4+i] = y[4+i]- exp[i];
+                loss += 0.5*back[4+i]*back[4+i];
         }
 
         // layer 2
         for(int i=0; i<1; ++i) {
-                back[3+i] *= dsigmoid(o[3+i]);
-                dparams[9+i*4+0] += back[3+i];
-                for(int j=0; j<3; ++j) {
-                        dparams[9+i*4+j+1] += back[3+i]*y[2+j];
-                }
+                back[4+i] *= dsigmoid(o[4+i]);
         }
+        cblas_daxpy(1, 1.0, &back[4], 1, &dparams[16], 1);
+        cblas_dger(CblasRowMajor, 1,4, 1.0, &back[4], 1, &y[0], 1, &dparams[12], 4);
+
         // layer 1
-        for(int i=0; i<3; ++i) {
-                back[0+i] = 0.;
-                for(int j=0; j<1; ++j) {
-                        back[0+i] += back[3+j]*params[9+j*4+i+1];
-                }
+        cblas_dgemv(CblasRowMajor, CblasNoTrans, 4,1, 1.0, &params[12], 1, &back[4], 1, 0.0, &back[0], 1);
+        for(int i=0; i<4; ++i) {
                 back[0+i] *= dsigmoid(o[0+i]);
-                dparams[0+i*3+0] += back[0+i];
-                for(int j=0; j<2; ++j) {
-                        dparams[0+i*3+j+1] += back[0+i]*y[0+j];
-                }
         }
+        cblas_daxpy(4, 1.0, &back[0], 1, &dparams[8], 1);
+        cblas_dger(CblasRowMajor, 4,2, 1.0, &back[0], 1, &in[0], 1, &dparams[0], 2);
         return loss;
 }
 
