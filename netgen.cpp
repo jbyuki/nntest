@@ -439,6 +439,10 @@ auto main() -> int
 		h("(void) loss;");
 		
 	h("}");
+	h("free(indices);");
+	
+	h("free(gradient);");
+	
 	
 	h("}");
 	

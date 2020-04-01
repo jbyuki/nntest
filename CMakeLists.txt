@@ -2,14 +2,15 @@ cmake_minimum_required(VERSION 3.1)
 set(CMAKE_CXX_STANDARD 14)
 project(nntest)
 
-set(MKL "C:\\Program Files (x86)\\IntelSWTools\\parallel_studio_xe_2019.5.068\\compilers_and_libraries_2019\\windows\\mkl")
+set(INTEL "C:\\Program Files (x86)\\IntelSWTools\\parallel_studio_xe_2019.5.068\\compilers_and_libraries_2019\\windows")
 
 include_directories(
-	"${MKL}/include"
+	"${INTEL}/mkl/include"
 )
 
 link_directories(
-	"${MKL}/lib/intel64_win"
+	"${INTEL}/mkl/lib/intel64_win"
+	"${INTEL}/compiler/lib/intel64_win"
 )
 
 add_executable(xor xor.cpp)

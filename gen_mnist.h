@@ -3,7 +3,7 @@
 #include <cstdlib>
 #include <mkl.h>
 
-const int NPARAMS = 25450;
+const int NPARAMS = 79510;
 const int NIN = 784;
 const int NOUT = 10;
 
@@ -28,18 +28,18 @@ void init_params(double* params)
 
 void forward(const double* params, const double* in, double* out)
 {
-        static double y[42];
+        static double y[110];
 
         // layer 0 -> 1
-        cblas_dgemv(CblasRowMajor, CblasNoTrans,32, 784, 1.0, &params[0],784, &in[0], 1, 0.0, &y[0], 1);
-        cblas_daxpy(32, 1.0, &params[25088], 1, &y[0], 1);
-        for(int i=0; i<32;++i) {
+        cblas_dgemv(CblasRowMajor, CblasNoTrans,100, 784, 1.0, &params[0],784, &in[0], 1, 0.0, &y[0], 1);
+        cblas_daxpy(100, 1.0, &params[78400], 1, &y[0], 1);
+        for(int i=0; i<100;++i) {
                 y[0+i] = sigmoid(y[0+i]);
         }
 
         // layer 1 -> 2
-        cblas_dgemv(CblasRowMajor, CblasNoTrans,10, 32, 1.0, &params[25120],32, &y[0], 1, 0.0, &out[0], 1);
-        cblas_daxpy(10, 1.0, &params[25440], 1, &out[0], 1);
+        cblas_dgemv(CblasRowMajor, CblasNoTrans,10, 100, 1.0, &params[78500],100, &y[0], 1, 0.0, &out[0], 1);
+        cblas_daxpy(10, 1.0, &params[79500], 1, &out[0], 1);
         for(int i=0; i<10;++i) {
                 out[0+i] = sigmoid(out[0+i]);
         }
@@ -47,44 +47,44 @@ void forward(const double* params, const double* in, double* out)
 
 double backward(const double* params, double* dparams, const double* in, const double* exp)
 {
-        static double o[42];
-        static double y[42];
+        static double o[110];
+        static double y[110];
 
         // layer 0 -> 1
-        cblas_dgemv(CblasRowMajor, CblasNoTrans,32, 784, 1.0, &params[0],784, &in[0], 1, 0.0, &o[0], 1);
-        cblas_daxpy(32, 1.0, &params[25088], 1, &o[0], 1);
-        for(int i=0; i<32;++i) {
+        cblas_dgemv(CblasRowMajor, CblasNoTrans,100, 784, 1.0, &params[0],784, &in[0], 1, 0.0, &o[0], 1);
+        cblas_daxpy(100, 1.0, &params[78400], 1, &o[0], 1);
+        for(int i=0; i<100;++i) {
                 y[0+i] = sigmoid(o[0+i]);
         }
 
         // layer 1 -> 2
-        cblas_dgemv(CblasRowMajor, CblasNoTrans,10, 32, 1.0, &params[25120],32, &y[0], 1, 0.0, &o[32], 1);
-        cblas_daxpy(10, 1.0, &params[25440], 1, &o[32], 1);
+        cblas_dgemv(CblasRowMajor, CblasNoTrans,10, 100, 1.0, &params[78500],100, &y[0], 1, 0.0, &o[100], 1);
+        cblas_daxpy(10, 1.0, &params[79500], 1, &o[100], 1);
         for(int i=0; i<10;++i) {
-                y[32+i] = sigmoid(o[32+i]);
+                y[100+i] = sigmoid(o[100+i]);
         }
-        static double back[42];
+        static double back[110];
 
         double loss = 0.;
         for(int i=0; i<10;++i) {
-                back[32+i] = y[32+i]- exp[i];
-                loss += 0.5*back[32+i]*back[32+i];
+                back[100+i] = y[100+i]- exp[i];
+                loss += 0.5*back[100+i]*back[100+i];
         }
 
         // layer 2
         for(int i=0; i<10; ++i) {
-                back[32+i] *= dsigmoid(o[32+i]);
+                back[100+i] *= dsigmoid(o[100+i]);
         }
-        cblas_daxpy(10, 1.0, &back[32], 1, &dparams[25440], 1);
-        cblas_dger(CblasRowMajor, 10,32, 1.0, &back[32], 1, &y[0], 1, &dparams[25120], 32);
+        cblas_daxpy(10, 1.0, &back[100], 1, &dparams[79500], 1);
+        cblas_dger(CblasRowMajor, 10,100, 1.0, &back[100], 1, &y[0], 1, &dparams[78500], 100);
 
         // layer 1
-        cblas_dgemv(CblasRowMajor, CblasTrans, 10,32, 1.0, &params[25120], 32, &back[32], 1, 0.0, &back[0], 1);
-        for(int i=0; i<32; ++i) {
+        cblas_dgemv(CblasRowMajor, CblasTrans, 10,100, 1.0, &params[78500], 100, &back[100], 1, 0.0, &back[0], 1);
+        for(int i=0; i<100; ++i) {
                 back[0+i] *= dsigmoid(o[0+i]);
         }
-        cblas_daxpy(32, 1.0, &back[0], 1, &dparams[25088], 1);
-        cblas_dger(CblasRowMajor, 32,784, 1.0, &back[0], 1, &in[0], 1, &dparams[0], 784);
+        cblas_daxpy(100, 1.0, &back[0], 1, &dparams[78400], 1);
+        cblas_dger(CblasRowMajor, 100,784, 1.0, &back[0], 1, &in[0], 1, &dparams[0], 784);
         return loss;
 }
 
@@ -120,4 +120,6 @@ void train(const double* in, const double* out, int size, double* params, int ne
                 }
                 (void) loss;
         }
+        free(indices);
+        free(gradient);
 }

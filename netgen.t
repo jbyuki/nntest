@@ -373,6 +373,7 @@ h("for(int i=0; i<nepochs; ++i) {");
 	@foreach_batch_compute_gradient_and_apply
 	@do_something_with_loss
 h("}");
+@deinit_index_array
 
 @init_index_array+=
 h("int* indices = (int*)malloc(size*sizeof(int));");
@@ -380,6 +381,9 @@ h("std::srand((unsigned)std::time(nullptr));");
 h("for(int i=0; i<size; ++i) {");
 	h("indices[i] = i;");
 h("}");
+
+@deinit_index_array+=
+h("free(indices);");
 
 @shuffle_index_array+=
 h("for(int i=0; i<size; ++i) {");
@@ -402,6 +406,9 @@ h("}");
 
 @init_index_array+=
 h("double* gradient = (double*)malloc(NPARAMS*sizeof(double));");
+
+@deinit_index_array+=
+h("free(gradient);");
 
 @init_gradient+=
 h("for(int k=0; k<NPARAMS; ++k) {");
