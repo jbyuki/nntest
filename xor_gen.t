@@ -35,7 +35,7 @@ init_params(params.data());
 
 
 @train+=
-train(in_data.data(), out_data.data(), 4, params.data(), 1000000, 4, 0.01);
+adam(in_data.data(), out_data.data(), 4, params.data(), 1000000, 4);
 
 @includes+=
 #include <iostream>

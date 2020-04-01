@@ -7,7 +7,9 @@ auto main() -> int
 {
 	@load_data
 	@init_params
+	@start_timer
 	@train_model
+	@end_timer
 	@load_test_data
 	@test_model
 
@@ -39,7 +41,7 @@ std::vector<double> params(NPARAMS);
 init_params(params.data());
 
 @train_model+=
-train(in_data.data(), out_data.data(), out_data.size()/10, params.data(), 5, 10, 3.0);
+adam(in_data.data(), out_data.data(), out_data.size()/10, params.data(), 10, 64);
 
 @load_test_data+=
 std::string test_images_path, test_labels_path;
@@ -78,3 +80,14 @@ for(size_t i=0; i<test_out_data.size()/10; ++i) {
 }
 
 std::cout << "Success : " << (double)num_good*100.0/(double)(test_out_data.size()/10) << "%" << std::endl;
+
+@includes+=
+#include <chrono>
+
+@start_timer+=
+auto start = std::chrono::high_resolution_clock::now();
+
+@end_timer+=
+auto end = std::chrono::high_resolution_clock::now();
+std::chrono::duration<double> elapsed = end - start;
+std::cout << "Elapsed: " << elapsed.count() << "s" << std::endl;

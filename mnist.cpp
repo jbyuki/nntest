@@ -4,6 +4,8 @@
 
 #include "gen_mnist.h"
 
+#include <chrono>
+
 
 auto argmax(double* a, int size) -> int
 {
@@ -35,8 +37,13 @@ auto main() -> int
 	std::vector<double> params(NPARAMS);
 	init_params(params.data());
 	
-	train(in_data.data(), out_data.data(), out_data.size()/10, params.data(), 5, 10, 3.0);
+	auto start = std::chrono::high_resolution_clock::now();
 	
+	adam(in_data.data(), out_data.data(), out_data.size()/10, params.data(), 10, 64);
+	
+	auto end = std::chrono::high_resolution_clock::now();
+	std::chrono::duration<double> elapsed = end - start;
+	std::cout << "Elapsed: " << elapsed.count() << "s" << std::endl;
 	std::string test_images_path, test_labels_path;
 	std::cout << "test images: ";
 	std::cin >> test_images_path;
@@ -57,6 +64,7 @@ auto main() -> int
 	}
 	
 	std::cout << "Success : " << (double)num_good*100.0/(double)(test_out_data.size()/10) << "%" << std::endl;
+	
 
 	system("PAUSE");
 	return 0;

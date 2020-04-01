@@ -24,6 +24,8 @@ enum OUTPUT_MODE
 	MKL,
 } mode;
 
+std::string optimizer;
+
 auto h_helper(std::ostream&) -> void
 {
 }
@@ -107,6 +109,9 @@ auto main() -> int
 	
 	mode = (use_mkl == "y" || use_mkl == "yes") ? MKL : PLAIN;
 	
+	std::cout << "Optimizer: ";
+	std::cin >> optimizer;
+	
 	int nnodes = 0;
 	for(size_t i=1; i<num_nodes.size(); ++i) {
 		nnodes += num_nodes[i];
@@ -132,6 +137,8 @@ auto main() -> int
 	if(mode == MKL) {
 		h("#include <mkl.h>");
 	}
+	
+	h("#include <cfloat>");
 	
 	h("");
 	h("const int NPARAMS = ", nparams, ";");
@@ -389,60 +396,160 @@ auto main() -> int
 	}
 	h("");
 	{
-	h("void train(const double* in, const double* out, int size, double* params, int nepochs, int batchsize, double alpha)");
+	if(optimizer == "sgd") {
+		h("void sgd(const double* in, const double* out, int size, double* params, int nepochs, int batchsize, double alpha)");
+	}
+	
+	if(optimizer == "adam") {
+		h("void adam(const double* in, const double* out, int size, double* params, int nepochs, int batchsize, double alpha = 0.001, double beta1 = 0.9, double beta2 = 0.999)");
+	}
 	
 	h("{");
 	
-	h("int* indices = (int*)malloc(size*sizeof(int));");
-	h("std::srand((unsigned)std::time(nullptr));");
-	h("for(int i=0; i<size; ++i) {");
-		h("indices[i] = i;");
-	h("}");
-	
-	h("double* gradient = (double*)malloc(NPARAMS*sizeof(double));");
-	
-	h("for(int i=0; i<nepochs; ++i) {");
+	if(optimizer == "sgd") {
+		h("int* indices = (int*)malloc(size*sizeof(int));");
+		h("std::srand((unsigned)std::time(nullptr));");
 		h("for(int i=0; i<size; ++i) {");
-			h("int a = rand()%size;");
-			h("int b = rand()%size;");
-			h("if(a == b) {");
-				h("continue;");
-			h("}");
-			h("int tmp = indices[a];");
-			h("indices[a] = indices[b];");
-			h("indices[b] = tmp;");
+			h("indices[i] = i;");
 		h("}");
 		
-		h("double loss = 0.;");
+		h("double* gradient = (double*)malloc(NPARAMS*sizeof(double));");
 		
-		h("for(int j=0; j<size; j += batchsize) {");
-			h("for(int k=0; k<NPARAMS; ++k) {");
-				h("gradient[k] = 0.;");
-			h("}");
-			
-			h("int last = j+batchsize > size ? size : j+batchsize;");
-			h("for(int k=j; k<last; ++k) {");
-				h("loss += backward(params, gradient, &in[indices[k]*", num_nodes[0], "], &out[indices[k]*", num_nodes.back(),"]);");
-			h("}");
-			
-			if(mode == PLAIN) {
-				h("for(int k=0; k<NPARAMS; ++k) {");
-					h("params[k] -= alpha * gradient[k] / (double)batchsize;");
+		h("double beta1t = beta1;");
+		h("double beta2t = beta2;");
+		
+		h("for(int i=0; i<nepochs; ++i) {");
+			h("for(int i=0; i<size; ++i) {");
+				h("int a = rand()%size;");
+				h("int b = rand()%size;");
+				h("if(a == b) {");
+					h("continue;");
 				h("}");
-			}
+				h("int tmp = indices[a];");
+				h("indices[a] = indices[b];");
+				h("indices[b] = tmp;");
+			h("}");
 			
-			if(mode == MKL) {
-				h("cblas_daxpy(NPARAMS, -alpha/(double)batchsize, &gradient[0], 1, &params[0], 1);");
-			}
+			h("double loss = 0.;");
+			
+			h("for(int j=0; j<size; j += batchsize) {");
+				h("for(int k=0; k<NPARAMS; ++k) {");
+					h("gradient[k] = 0.;");
+				h("}");
+				
+				h("int last = j+batchsize > size ? size : j+batchsize;");
+				h("for(int k=j; k<last; ++k) {");
+					h("loss += backward(params, gradient, &in[indices[k]*", num_nodes[0], "], &out[indices[k]*", num_nodes.back(),"]);");
+				h("}");
+				
+				if(mode == PLAIN) {
+					h("for(int k=0; k<NPARAMS; ++k) {");
+						h("params[k] -= alpha * gradient[k] / (double)batchsize;");
+					h("}");
+				}
+				
+				if(mode == MKL) {
+					h("cblas_daxpy(NPARAMS, -alpha/(double)batchsize, &gradient[0], 1, &params[0], 1);");
+				}
+				
+			h("}");
+			
+			h("(void) loss;");
+			
+		h("}");
+		h("free(indices);");
+		
+		h("free(gradient);");
+		
+	}
+	
+	if(optimizer == "adam") {
+		h("int* indices = (int*)malloc(size*sizeof(int));");
+		h("std::srand((unsigned)std::time(nullptr));");
+		h("for(int i=0; i<size; ++i) {");
+			h("indices[i] = i;");
 		h("}");
 		
-		h("(void) loss;");
+		h("double* gradient = (double*)malloc(NPARAMS*sizeof(double));");
 		
-	h("}");
-	h("free(indices);");
-	
-	h("free(gradient);");
-	
+		h("double beta1t = beta1;");
+		h("double beta2t = beta2;");
+		
+		h("double t = 0.0;");
+		
+		h("double* m = (double*)malloc(NPARAMS*sizeof(double));");
+		h("double* v = (double*)malloc(NPARAMS*sizeof(double));");
+		
+		h("for(int j=0; j<NPARAMS; j++) {");
+			h("m[j] = 0.0;");
+			h("v[j] = 0.0;");
+		h("}");
+		
+		h("for(int i=0; i<nepochs; ++i) {");
+			h("for(int i=0; i<size; ++i) {");
+				h("int a = rand()%size;");
+				h("int b = rand()%size;");
+				h("if(a == b) {");
+					h("continue;");
+				h("}");
+				h("int tmp = indices[a];");
+				h("indices[a] = indices[b];");
+				h("indices[b] = tmp;");
+			h("}");
+			
+			h("double loss = 0.;");
+			
+			h("for(int j=0; j<size; j += batchsize) {");
+				h("for(int k=0; k<NPARAMS; ++k) {");
+					h("gradient[k] = 0.;");
+				h("}");
+				
+				h("int last = j+batchsize > size ? size : j+batchsize;");
+				h("for(int k=j; k<last; ++k) {");
+					h("loss += backward(params, gradient, &in[indices[k]*", num_nodes[0], "], &out[indices[k]*", num_nodes.back(),"]);");
+				h("}");
+				
+				h("double alphat = alpha * std::sqrt(1.0 - beta2t)/(1.0 - beta1t);");
+				
+				if(mode == PLAIN) {
+					h("for(int i=0; i<NPARAMS; ++i) {");
+						h("gradient[i] /= (double)batchsize;");
+						h("m[i] = beta1*m[i] + (1-beta1)*gradient[i];");
+						h("v[i] = beta2*v[i] + (1-beta2)*gradient[i]*gradient[i];");
+						h("params[i] -= alphat*m[i]/(std::sqrt(v[i] + epsilon));");
+					h("}");
+				}
+				
+				if(mode == MKL) {
+					h("cblas_dscal(NPARAMS, 1.0/(double)batchsize, gradient, 1);");
+					h("cblas_dscal(NPARAMS, beta1, m, 1);");
+					h("cblas_daxpy(NPARAMS, 1.0-beta1, gradient, 1, m, 1);");
+					h("cblas_dscal(NPARAMS, beta2, v, 1);");
+					h("vdSqr(NPARAMS, gradient, gradient);");
+					h("cblas_daxpy(NPARAMS, 1.0-beta2, gradient, 1, v, 1);");
+					h("// use gradient as temporary storage because it's not needed anymore");
+					h("vdSqrt(NPARAMS, v, gradient);");
+					h("vdLinearFrac(NPARAMS, m, gradient, -alphat, 0.0, 1.0, DBL_EPSILON, gradient);");
+					h("vdAdd(NPARAMS, gradient, params, params);");
+				}
+				h("beta1t *= beta1;");
+				h("beta2t *= beta2;");
+				
+			h("}");
+			
+			
+			
+			h("(void) loss;");
+			
+		h("}");
+		h("free(v);");
+		h("free(m);");
+		
+		h("free(indices);");
+		
+		h("free(gradient);");
+		
+	}
 	
 	h("}");
 	

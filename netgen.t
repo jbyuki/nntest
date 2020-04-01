@@ -363,17 +363,21 @@ if(mode == PLAIN) {
 @close_parenthesis
 
 @gen_train_signature+=
-h("void train(const double* in, const double* out, int size, double* params, int nepochs, int batchsize, double alpha)");
+if(optimizer == "sgd") {
+	h("void sgd(const double* in, const double* out, int size, double* params, int nepochs, int batchsize, double alpha)");
+}
 
 @gen_train_body+=
-@init_index_array
-h("for(int i=0; i<nepochs; ++i) {");
-	@shuffle_index_array
-	@init_epoch_loss
-	@foreach_batch_compute_gradient_and_apply
-	@do_something_with_loss
-h("}");
-@deinit_index_array
+if(optimizer == "sgd") {
+	@init_index_array
+	h("for(int i=0; i<nepochs; ++i) {");
+		@shuffle_index_array
+		@init_epoch_loss
+		@foreach_batch_compute_gradient_and_apply
+		@do_something_with_loss
+	h("}");
+	@deinit_index_array
+}
 
 @init_index_array+=
 h("int* indices = (int*)malloc(size*sizeof(int));");
@@ -575,4 +579,94 @@ if(mode == MKL) {
 @apply_gradient+=
 if(mode == MKL) {
 	h("cblas_daxpy(NPARAMS, -alpha/(double)batchsize, &gradient[0], 1, &params[0], 1);");
+}
+
+@global_variables+=
+std::string optimizer;
+
+@retrieve_net_parameters+=
+std::cout << "Optimizer: ";
+std::cin >> optimizer;
+
+@gen_train_body+=
+if(optimizer == "adam") {
+	@init_index_array
+	@init_timestep
+	@init_moment_vectors
+	h("for(int i=0; i<nepochs; ++i) {");
+		@shuffle_index_array
+		@init_epoch_loss
+		@foreach_batch_compute_gradient_and_apply_adam
+		@do_something_with_loss
+	h("}");
+	@deinit_moment_vectors
+	@deinit_index_array
+}
+
+@init_timestep+=
+h("double t = 0.0;");
+
+@init_moment_vectors+=
+h("double* m = (double*)malloc(NPARAMS*sizeof(double));");
+h("double* v = (double*)malloc(NPARAMS*sizeof(double));");
+
+h("for(int j=0; j<NPARAMS; j++) {");
+	h("m[j] = 0.0;");
+	h("v[j] = 0.0;");
+h("}");
+
+@deinit_moment_vectors+=
+h("free(v);");
+h("free(m);");
+
+@foreach_batch_compute_gradient_and_apply_adam+=
+h("for(int j=0; j<size; j += batchsize) {");
+	@init_gradient
+	@compute_batch_gradient
+	@apply_gradient_adam
+	@update_factors_adam
+h("}");
+
+
+
+@gen_train_signature+=
+if(optimizer == "adam") {
+	h("void adam(const double* in, const double* out, int size, double* params, int nepochs, int batchsize, double alpha = 0.001, double beta1 = 0.9, double beta2 = 0.999)");
+}
+
+@init_index_array+=
+h("double beta1t = beta1;");
+h("double beta2t = beta2;");
+
+@update_factors_adam+=
+h("beta1t *= beta1;");
+h("beta2t *= beta2;");
+
+@apply_gradient_adam+=
+h("double alphat = alpha * std::sqrt(1.0 - beta2t)/(1.0 - beta1t);");
+
+if(mode == PLAIN) {
+	h("for(int i=0; i<NPARAMS; ++i) {");
+		h("gradient[i] /= (double)batchsize;");
+		h("m[i] = beta1*m[i] + (1-beta1)*gradient[i];");
+		h("v[i] = beta2*v[i] + (1-beta2)*gradient[i]*gradient[i];");
+		h("params[i] -= alphat*m[i]/(std::sqrt(v[i] + epsilon));");
+	h("}");
+}
+
+@gen_includes+=
+h("#include <cfloat>");
+
+@apply_gradient_adam+=
+if(mode == MKL) {
+	h("cblas_dscal(NPARAMS, 1.0/(double)batchsize, gradient, 1);");
+	h("cblas_dscal(NPARAMS, beta1, m, 1);");
+	h("cblas_daxpy(NPARAMS, 1.0-beta1, gradient, 1, m, 1);");
+	h("cblas_dscal(NPARAMS, beta2, v, 1);");
+	h("vdSqr(NPARAMS, gradient, gradient);");
+	h("cblas_daxpy(NPARAMS, 1.0-beta2, gradient, 1, v, 1);");
+	h("// use gradient as temporary storage because it's not needed anymore");
+	h("vdSqrt(NPARAMS, v, gradient);");
+	h("vdLinearFrac(NPARAMS, m, gradient, -alphat, 0.0, 1.0, DBL_EPSILON, gradient);");
+	h("vdAdd(NPARAMS, gradient, params, params);");
 }

@@ -51,7 +51,7 @@ auto main() -> int
 	
 	std::cout << "diff : " << std::sqrt(diff) << std::endl;
 	
-	train(in_data.data(), out_data.data(), 4, params.data(), 1000000, 4, 0.01);
+	adam(in_data.data(), out_data.data(), 4, params.data(), 1000000, 4);
 	
 	double result;
 	forward(params.data(), &in_data[0], &result);

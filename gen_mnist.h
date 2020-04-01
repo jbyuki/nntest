@@ -2,6 +2,7 @@
 #include <ctime>
 #include <cstdlib>
 #include <mkl.h>
+#include <cfloat>
 
 const int NPARAMS = 79510;
 const int NIN = 784;
@@ -88,7 +89,7 @@ double backward(const double* params, double* dparams, const double* in, const d
         return loss;
 }
 
-void train(const double* in, const double* out, int size, double* params, int nepochs, int batchsize, double alpha)
+void adam(const double* in, const double* out, int size, double* params, int nepochs, int batchsize, double alpha = 0.001, double beta1 = 0.9, double beta2 = 0.999)
 {
         int* indices = (int*)malloc(size*sizeof(int));
         std::srand((unsigned)std::time(nullptr));
@@ -96,6 +97,15 @@ void train(const double* in, const double* out, int size, double* params, int ne
                 indices[i] = i;
         }
         double* gradient = (double*)malloc(NPARAMS*sizeof(double));
+        double beta1t = beta1;
+        double beta2t = beta2;
+        double t = 0.0;
+        double* m = (double*)malloc(NPARAMS*sizeof(double));
+        double* v = (double*)malloc(NPARAMS*sizeof(double));
+        for(int j=0; j<NPARAMS; j++) {
+                m[j] = 0.0;
+                v[j] = 0.0;
+        }
         for(int i=0; i<nepochs; ++i) {
                 for(int i=0; i<size; ++i) {
                         int a = rand()%size;
@@ -116,10 +126,24 @@ void train(const double* in, const double* out, int size, double* params, int ne
                         for(int k=j; k<last; ++k) {
                                 loss += backward(params, gradient, &in[indices[k]*784], &out[indices[k]*10]);
                         }
-                        cblas_daxpy(NPARAMS, -alpha/(double)batchsize, &gradient[0], 1, &params[0], 1);
+                        double alphat = alpha * std::sqrt(1.0 - beta2t)/(1.0 - beta1t);
+                        cblas_dscal(NPARAMS, 1.0/(double)batchsize, gradient, 1);
+                        cblas_dscal(NPARAMS, beta1, m, 1);
+                        cblas_daxpy(NPARAMS, 1.0-beta1, gradient, 1, m, 1);
+                        cblas_dscal(NPARAMS, beta2, v, 1);
+                        vdSqr(NPARAMS, gradient, gradient);
+                        cblas_daxpy(NPARAMS, 1.0-beta2, gradient, 1, v, 1);
+                        // use gradient as temporary storage because it's not needed anymore
+                        vdSqrt(NPARAMS, v, gradient);
+                        vdLinearFrac(NPARAMS, m, gradient, -alphat, 0.0, 1.0, DBL_EPSILON, gradient);
+                        vdAdd(NPARAMS, gradient, params, params);
+                        beta1t *= beta1;
+                        beta2t *= beta2;
                 }
                 (void) loss;
         }
+        free(v);
+        free(m);
         free(indices);
         free(gradient);
 }
